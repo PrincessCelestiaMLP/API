@@ -105,6 +105,12 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
+
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenAnyIP(Int32.Parse(port));
+});
 //==========Підключення валідація==================
 builder.Services.AddValidatorsFromAssemblyContaining<ClientValidator>();
 builder.Services.AddValidatorsFromAssemblyContaining<ParckingValidator>();
