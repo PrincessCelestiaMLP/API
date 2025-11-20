@@ -1,0 +1,6 @@
+@LW4_API_HostAddress = http://localhost:5064
+
+GET {{LW4_API_HostAddress}}/
+Accept: application/json
+
+###
