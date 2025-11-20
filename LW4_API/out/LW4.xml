@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>LW4</name>
+    </assembly>
+    <members>
+        <member name="T:LW4_API.Model.Entity.ParkingSpace">
+            <summary>
+            Модель, що представляє один елемент списку завдань (ParkingSpace).
+            </summary>
+        </member>
+    </members>
+</doc>
