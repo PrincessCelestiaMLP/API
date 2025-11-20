@@ -6,52 +6,55 @@ using LW4_API.Model;
 using LW4_API.Repository.Interface;
 using LW4_API.Repository.Realization;
 using LW4_API.Server.Realizetion;
-using MongoDB.Driver;
 using LW4_API.Mapper;
 using LW4_API.Server.Interface;
 using LW4_API.Server;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
-using System.Text;
 using LW4_API.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using MongoDB.Driver;
+using System.Text;
+
 var builder = WebApplication.CreateBuilder(args);
-//==========Підключення бази даних==================
+
+// ================== MongoDB ==================
 builder.Services.AddSingleton<IMongoClient>(sp =>
     new MongoClient("mongodb+srv://nazarshejkin_db_user:eXsanO17aQW49eV6@nazar.pjrmold.mongodb.net/?appName=Nazar"));
-
 builder.Services.AddSingleton<IMongoDatabase>(sp =>
     sp.GetRequiredService<IMongoClient>().GetDatabase("mydatabase"));
 
-//==========Підключення маперів==================
-builder.Services.AddAutoMapper(typeof(ClientProfile));
-builder.Services.AddAutoMapper(typeof(RentProfile));
-builder.Services.AddAutoMapper(typeof(ParkingSpaceProfile));
-//==========Підключення Репозиторіїв==================
+// ================== AutoMapper ==================
+builder.Services.AddAutoMapper(typeof(ClientProfile), typeof(RentProfile), typeof(ParkingSpaceProfile));
+
+// ================== Repositories ==================
 builder.Services.AddScoped<IClientRepository, ClientRepository>();
 builder.Services.AddScoped<IParkingSpaceRepository, ParkingSpaceRepository>();
 builder.Services.AddScoped<IRentRepository, RentRepository>();
 builder.Services.AddTransient<IUserRepository, UserRepository>();
 
-
-
-builder.Services.AddSwaggerGen();
-
-//==========Підключення сервісів==================
-builder.Services.AddScoped<IClientService,ClientServer>();
-builder.Services.AddScoped<IParkingService,ParkingSpaceService>();
-builder.Services.AddScoped<IRentService,RentService>();
+// ================== Services ==================
+builder.Services.AddScoped<IClientService, ClientServer>();
+builder.Services.AddScoped<IParkingService, ParkingSpaceService>();
+builder.Services.AddScoped<IRentService, RentService>();
 builder.Services.AddTransient<IUserService, UserService>();
 builder.Services.AddSingleton<IPasswordHasher, PasswordHasher>();
-//==========Підключення контролерів==================
-builder.Services.AddControllers()
-    .AddFluentValidation();
-//==========JWT НАСТРОЙКИ==================
-builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
+
+// ================== Controllers + FluentValidation ==================
+builder.Services.AddControllers().AddFluentValidation();
+builder.Services.AddValidatorsFromAssemblyContaining<ClientValidator>();
+builder.Services.AddValidatorsFromAssemblyContaining<ParckingValidator>();
+
+// ================== JWT Settings ==================
+var jwtSection = builder.Configuration.GetSection("JWT");
+var jwtSettings = jwtSection.Get<JwtSettings>() ?? throw new Exception("JWT section is missing!");
+
+// Прибираємо лапки, якщо Railway їх автоматично додає
+jwtSettings.SecretKey = jwtSettings.SecretKey?.Trim('"') ?? throw new Exception("JWT SecretKey is null or empty!");
+
+builder.Services.AddSingleton(jwtSettings);
 builder.Services.AddSingleton<JwtTokenGenerator>();
 
-var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -65,38 +68,35 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtSettings["Issuer"],
-        ValidAudience = jwtSettings["Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]))
+        ValidIssuer = jwtSettings.Issuer,
+        ValidAudience = jwtSettings.Audience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey))
     };
 });
 
 builder.Services.AddAuthorization();
 
-//==========Swagger з підтримкою JWT==================
+// ================== Swagger ==================
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "My API", Version = "v1" });
-
-    // Додаємо JWT авторизацію
-    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
-        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Type = SecuritySchemeType.Http,
         Scheme = "bearer",
         BearerFormat = "JWT",
-        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        In = ParameterLocation.Header,
         Description = "Введіть токен у форматі: Bearer {токен}"
     });
-
-    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
-            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            new OpenApiSecurityScheme
             {
-                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                Reference = new OpenApiReference
                 {
-                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Type = ReferenceType.SecurityScheme,
                     Id = "Bearer"
                 }
             },
@@ -105,24 +105,22 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
-
+// ================== Kestrel Port (Railway) ==================
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.ListenAnyIP(Int32.Parse(port));
+    options.ListenAnyIP(int.Parse(port));
 });
-//==========Підключення валідація==================
-builder.Services.AddValidatorsFromAssemblyContaining<ClientValidator>();
-builder.Services.AddValidatorsFromAssemblyContaining<ParckingValidator>();
+
 var app = builder.Build();
+
+// ================== Middleware ==================
+app.UseSwagger();
+app.UseSwaggerUI();
+
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
 
-    app.UseSwagger();      
-    app.UseSwaggerUI();    
-
-
 app.Run();
-
-
