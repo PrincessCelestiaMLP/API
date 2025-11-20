@@ -8,8 +8,7 @@
 	  <GenerateDocumentationFile>true</GenerateDocumentationFile>
 	  <NoWarn>$(NoWarn);1591</NoWarn>
 	  <!-- приховує попередження про відсутність коментарів -->
-	  <RootNamespace>LW4_API</RootNamespace>
-	  <AssemblyName>LW4</AssemblyName>
+	  <AssemblyName>LW4_API</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
